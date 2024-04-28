@@ -53,8 +53,6 @@ fu! s:line_indent(lnum = '.')
 endf
 
 fu! s:reorder(lnum = '.', start_line = 0)
-    let l:ol_id = reltimestr(reltime())[-3:]
-
     let lnum = type(a:lnum) == 0 ? a:lnum : line(a:lnum)
 
     let first_bullet_lnum = 0
@@ -114,6 +112,7 @@ fu! s:new_bullet(insert_over = v:false)
     let lnum = line('.')
     let line = getline(lnum)
     let ltype = s:line_type(lnum)
+    let is_ends_with_colon = s:ends_with_colon(lnum)
 
     if ltype['empty_bullet'] == v:true
         call setline(lnum, '')
@@ -125,21 +124,25 @@ fu! s:new_bullet(insert_over = v:false)
         if a:insert_over
             let marker = (marker[:-2] - 1 > 0 ? marker[:-2] - 1 : 1) . '.'
         else
-            let marker = marker[:-2] + 1 . '.'
+            if is_ends_with_colon
+                let marker = '1.'
+            else
+                let marker = marker[:-2] + 1 . '.'
+            endif
         endif
     endif
 
     if s:end_of_line()
         call append(a:insert_over ? lnum - 1 : lnum,
                     \ repeat(' ', s:line_indent(lnum) +
-                    \   (s:ends_with_colon(lnum) ? shiftwidth() : 0))
+                    \   (is_ends_with_colon && !a:insert_over ? shiftwidth() : 0))
                     \ . marker . ' '
                     \ )
     else
         call setline('.', line[:col('.')-2])
         call append(a:insert_over ? lnum - 1 : lnum,
                     \ repeat(' ', s:line_indent(lnum) +
-                    \   (s:ends_with_colon(lnum) ? shiftwidth() : 0))
+                    \   (is_ends_with_colon && !a:insert_over ? shiftwidth() : 0))
                     \ . marker . ' '
                     \ . line[col('.')-1:]
                     \ )
@@ -147,7 +150,7 @@ fu! s:new_bullet(insert_over = v:false)
 
     call cursor(a:insert_over ? lnum : lnum + 1,
                 \ s:line_indent(lnum) + 2 + strlen(marker)
-                \   + (s:ends_with_colon(lnum) ? shiftwidth() : 0)
+                \   + (is_ends_with_colon && !a:insert_over ? shiftwidth() : 0)
                 \ )
 
     if ltype['type'] == 2 && g:bullets#renumber_on_change
@@ -155,7 +158,17 @@ fu! s:new_bullet(insert_over = v:false)
     endif
 endf
 
+fu! s:new_line()
+    let lnum = line('.')
+    let ltype = s:line_type(lnum)
+    let new_indent = ltype['type'] == 10 ? s:line_indent(lnum) : (s:line_indent(lnum) + len(ltype['marker']) + 1)
+    echo 'new_indent: ' . new_indent
+    call append(lnum, repeat(' ', new_indent))
+    call cursor(lnum + 1, new_indent + 1)
+endf
+
 inoremap <buffer> <CR> <Cmd>call <SID>new_bullet()<CR>
+inoremap <buffer> <M-CR> <Cmd>call <SID>new_line()<CR>
 inoremap <buffer> <S-CR> <Cmd>call <SID>new_bullet(v:true)<CR>
 inoremap <buffer> <C-CR> <ESC>A<Cmd>call <SID>new_bullet()<CR>
 inoremap <buffer> <C-S-CR> <ESC>A<Cmd>call <SID>new_bullet(v:true)<CR>
